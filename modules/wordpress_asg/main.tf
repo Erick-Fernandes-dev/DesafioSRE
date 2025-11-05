@@ -22,9 +22,9 @@ resource "aws_autoscaling_group" "wordpress" {
   desired_capacity    = 2
   min_size            = 2
   max_size            = 6
-  
-  target_group_arns   = [var.target_group_arn]
-  health_check_type   = "ELB"
+
+  target_group_arns = [var.target_group_arn]
+  health_check_type = "ELB"
 
   health_check_grace_period = 900 # (15 minutos)
 
@@ -59,5 +59,5 @@ data "aws_instances" "wordpress" {
     Name = "${var.desafio_sre}-wordpress"
   }
   instance_state_names = ["running"]
-  depends_on = [aws_autoscaling_group.wordpress]
+  depends_on           = [aws_autoscaling_group.wordpress]
 }

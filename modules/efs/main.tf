@@ -1,9 +1,9 @@
 resource "aws_efs_file_system" "main" {
-  creation_token = "${var.desafio_sre}-efs"
+  creation_token   = "${var.desafio_sre}-efs"
   performance_mode = "generalPurpose"
   throughput_mode  = "bursting"
   encrypted        = true
-  
+
   tags = {
     Name = "${var.desafio_sre}-efs"
   }

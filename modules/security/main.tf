@@ -48,7 +48,7 @@ resource "aws_security_group" "wordpress" {
     description     = "Permite SSH do Bastion (Pritunl)"
   }
   # --- FIM DA CORREÇÃO ---
-  
+
   egress {
     from_port   = 0
     to_port     = 0

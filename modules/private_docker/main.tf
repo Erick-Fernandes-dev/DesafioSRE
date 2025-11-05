@@ -25,8 +25,8 @@ resource "aws_cloudwatch_metric_alarm" "private_docker_cpu" {
   period              = "300"
   statistic           = "Average"
   threshold           = "50"
-  alarm_description = "This metric monitors EC2 CPU utilization for Private Docker instance"
-  
+  alarm_description   = "This metric monitors EC2 CPU utilization for Private Docker instance"
+
   dimensions = {
     InstanceId = aws_instance.private_docker.id
   }

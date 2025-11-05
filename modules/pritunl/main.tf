@@ -30,8 +30,8 @@ resource "aws_cloudwatch_metric_alarm" "pritunl_cpu" {
   period              = "300"
   statistic           = "Average"
   threshold           = "80"
-  alarm_description = "This metric monitors EC2 CPU utilization for Pritunl instance"
-  
+  alarm_description   = "This metric monitors EC2 CPU utilization for Pritunl instance"
+
   dimensions = {
     InstanceId = aws_instance.pritunl.id
   }
