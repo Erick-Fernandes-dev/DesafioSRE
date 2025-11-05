@@ -1,0 +1,305 @@
+resource "aws_vpc" "main" {
+    cidr_block = var.vpc_cidr
+    enable_dns_support = true
+    enable_dns_hostnames = true
+    tags = {
+      Name = "${var.desafio_sre}-vpc"
+    }
+}
+
+resource "aws_internet_gateway" "main" {
+    vpc_id = aws_vpc.main.id
+    tags = {
+      Name = "${var.desafio_sre}-igw"
+    }
+  
+}
+
+resource "aws_subnet" "public" {
+    count                   = length(var.public_subnets_cidr)
+    vpc_id                  = aws_vpc.main.id
+    cidr_block              = var.public_subnets_cidr[count.index]
+    availability_zone       = var.availability_zones[count.index]
+    map_public_ip_on_launch = true
+    tags = {
+    Name = "${var.desafio_sre}-public-subnet-${count.index + 1}"
+    }
+}
+
+resource "aws_subnet" "private" {
+    count             = length(var.private_subnets_cidr)
+    vpc_id            = aws_vpc.main.id
+    cidr_block        = var.private_subnets_cidr[count.index]
+    availability_zone = var.availability_zones[count.index]
+    tags = {
+    Name = "${var.desafio_sre}-private-subnet-${count.index + 1}"
+    }
+}
+
+resource "aws_eip" "nat" {
+    count  = length(var.public_subnets_cidr)
+    domain = "vpc"
+  
+}
+
+
+resource "aws_nat_gateway" "main" {
+    count         = length(var.public_subnets_cidr)
+    allocation_id = aws_eip.nat[count.index].id
+    subnet_id     = aws_subnet.public[count.index].id
+    tags = {
+        Name = "${var.desafio_sre}-nat-gw-${count.index + 1}"
+    }
+    depends_on = [aws_internet_gateway.main]
+}
+
+resource "aws_route_table" "public" {
+    vpc_id = aws_vpc.main.id
+    route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+    }
+    tags = { Name = "${var.desafio_sre}-public-rt" }
+}
+
+resource "aws_route_table" "private" {
+    count  = length(var.private_subnets_cidr)
+    vpc_id = aws_vpc.main.id
+    route {
+        cidr_block     = "0.0.0.0/0"
+        nat_gateway_id = aws_nat_gateway.main[count.index].id
+    }
+    tags = { Name = "${var.desafio_sre}-private-rt-${count.index + 1}" }
+}
+
+resource "aws_route_table_association" "public" {
+    count          = length(var.public_subnets_cidr) - 1
+    subnet_id      = aws_subnet.public[count.index + 1].id
+    route_table_id = aws_route_table.public.id
+}
+
+#resource "aws_route_table_association" "public" {
+#    count          = length(var.public_subnets_cidr)
+#    subnet_id      = aws_subnet.public[count.index].id
+#    route_table_id = aws_route_table.public.id
+#}
+
+
+resource "aws_route_table_association" "private" {
+    count          = length(var.private_subnets_cidr)
+    subnet_id      = aws_subnet.private[count.index].id
+    route_table_id = aws_route_table.private[count.index].id
+}
+
+resource "aws_route_table" "pritunl" {
+    vpc_id = aws_vpc.main.id
+    route {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = aws_internet_gateway.main.id
+    }
+    route {
+      cidr_block = var.private_subnets_cidr[0]
+      nat_gateway_id = aws_nat_gateway.main[0].id
+    }
+    route {
+      cidr_block = var.private_subnets_cidr[1]
+      nat_gateway_id = aws_nat_gateway.main[1].id
+    }
+    tags = { Name = "${var.desafio_sre}-pritunl-rt" }
+}
+
+resource "aws_route_table_association" "pritunl" {
+    subnet_id      = aws_subnet.public[0].id
+    route_table_id = aws_route_table.pritunl.id
+}
+
+
+
+
+
+
+---
+
+# 1. Security Group para o Application Load Balancer (ALB)
+resource "aws_security_group" "alb" {
+  name        = "alb-sg"
+  description = "Permite trafego HTTP/HTTPS para o ALB"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# 2. Security Group para as instâncias WordPress
+resource "aws_security_group" "wordpress" {
+  name        = "wordpress-ec2-sg"
+  description = "Permite trafego do ALB e acesso SSH"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # ABERTO PARA FACILITAR O ANSIBLE. Em produção, restrinja ao IP da VPN.
+  }
+  #ingress {
+  #  from_port   = 22
+  #  to_port     = 22
+  #  protocol    = "tcp"
+  #  cidr_blocks = [var.vpc_cidr] 
+  #}
+  #ingress {
+  #  from_port       = 22
+  #  to_port         = 22
+  #  protocol        = "tcp"
+  #  security_groups = [aws_security_group.pritunl.id]
+  #  description     = "Permite SSH do Bastion (Pritunl)"
+  #}
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# 3. Security Group para o RDS
+resource "aws_security_group" "rds" {
+  name        = "rds-sg"
+  description = "Permite trafego do WordPress para o MySQL"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.wordpress.id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# 4. Security Group para o ElastiCache
+resource "aws_security_group" "elasticache" {
+  name        = "elasticache-sg"
+  description = "Permite trafego do WordPress para o Memcached"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 11211
+    to_port         = 11211
+    protocol        = "tcp"
+    security_groups = [aws_security_group.wordpress.id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# 5. Security Group para o EFS
+resource "aws_security_group" "efs" {
+  name        = "efs-sg"
+  description = "Permite trafego NFS do WordPress"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.wordpress.id]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# 6. Security Group para o Pritunl
+resource "aws_security_group" "pritunl" {
+  name        = "pritunl-sg"
+  description = "Permite acesso web e VPN ao Pritunl"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    from_port   = 1194 # Porta padrão OpenVPN
+    to_port     = 1194
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# 7. Security Group para a Instância Docker Privada
+resource "aws_security_group" "private_docker" {
+  name        = "private-docker-sg"
+  description = "Permite acesso do Pritunl (VPN)"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr] # Permite SSH de qualquer lugar da VPC (idealmente, restrinja ao IP da VPN)
+  }
+  ingress {
+    from_port   = 8080 # Porta da aplicação Nginx Hello
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr, "192.168.100.0/24"] # Permite acesso da rede VPN Pritunl
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+

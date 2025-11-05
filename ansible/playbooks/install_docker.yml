@@ -1,0 +1,68 @@
+- name: Provisionar Instância Privada com Docker (Ubuntu)
+  hosts: docker_servers
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: 1. Instalar pacotes de pré-requisitos
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - python3-pip
+          - docker-compose
+        state: present
+        update_cache: yes
+
+    - name: 2. Adicionar a chave GPG do Docker
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/trusted.gpg.d/docker.asc
+        mode: '0644'
+        force: yes
+
+    - name: 3. Adicionar o repositório do Docker
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+
+    - name: 4. Instalar o Docker Engine
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+        update_cache: yes
+
+    - name: 5. Iniciar e habilitar o serviço Docker
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: 6. Adicionar usuário 'ubuntu' ao grupo 'docker'
+      ansible.builtin.user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: 7. Instalar dependências Python para módulos Docker
+      ansible.builtin.pip:
+        name:
+          - docker
+          - requests
+        executable: pip3
+        extra_args: --break-system-packages
+
+    - name: 8. Rodar o container "Hello World"
+      community.docker.docker_container:
+        name: hello-world-app
+        image: nginxdemos/hello
+        state: started
+        restart_policy: always
+        published_ports:
+          - "8080:80"
+ 

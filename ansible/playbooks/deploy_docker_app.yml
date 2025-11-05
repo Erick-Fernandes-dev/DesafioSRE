@@ -1,0 +1,32 @@
+- name: Implantar Aplicação Docker "Hello World"
+  hosts: docker_servers
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Criar diretório para a aplicação
+      ansible.builtin.file:
+        path: /app
+        state: directory
+        mode: '0755'
+
+    - name: Copiar arquivos da aplicação
+      ansible.builtin.copy:
+        src: ../files/hello-world-html/
+        dest: /app/
+
+    - name: Construir a imagem Docker
+      community.docker.docker_image:
+        name: hello-world-html
+        build:
+          path: /app
+        source: build
+        state: present
+
+    - name: Executar o container Docker
+      community.docker.docker_container:
+        name: hello-world-html
+        image: hello-world-html
+        state: started
+        recreate: yes
+        ports:
+          - "8080:80"

@@ -1,0 +1,22 @@
+- name: Bootstrap Python 3 on Ubuntu
+  hosts: all
+  become: yes
+  gather_facts: no
+
+  tasks:
+    - name: Install Python 3
+      ansible.builtin.apt:
+        name: python3-minimal
+        state: present
+        update_cache: yes
+
+    - name: Check if python3 is installed
+      ansible.builtin.command: which python3
+      register: python_check
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Print python path
+      ansible.builtin.debug:
+        msg: "Python 3 is installed at: {{ python_check.stdout }}"
+      when: python_check.stdout != ""

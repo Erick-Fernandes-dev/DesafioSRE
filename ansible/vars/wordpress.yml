@@ -1,0 +1,7 @@
+wordpress_site_url: "http://wordpres-ha-alb-1776717271.us-west-2.elb.amazonaws.com"
+wordpress_title: "My Awesome WordPress Site"
+wordpress_admin_user: "admin"
+wordpress_admin_password: "your_strong_admin_password"
+wordpress_admin_email: "admin@example.com"
+wordpress_path: "/var/www/html"
+wp_cli_bin: "/usr/local/bin/wp"

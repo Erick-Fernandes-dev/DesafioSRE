@@ -1,0 +1,28 @@
+- name: Completar Instalação do WordPress com WP-CLI
+  hosts: wordpress_servers
+  become: yes
+  vars_files:
+    - ../vars/wordpress.yml
+  tasks:
+    - name: Garantir que o WP-CLI está instalado
+      ansible.builtin.shell: |
+        if ! command -v {{ wp_cli_bin }} &> /dev/null; then
+          curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x wp-cli.phar
+          mv wp-cli.phar {{ wp_cli_bin }}
+        fi
+      args:
+        creates: "{{ wp_cli_bin }}"
+
+    - name: Instalar o WordPress usando WP-CLI
+      ansible.builtin.command: >
+        {{ wp_cli_bin }} core install
+        --path={{ wordpress_path }}
+        --url={{ wordpress_site_url }}
+        --title="{{ wordpress_title }}"
+        --admin_user={{ wordpress_admin_user }}
+        --admin_password={{ wordpress_admin_password }}
+        --admin_email={{ wordpress_admin_email }}
+        --allow-root
+      args:
+        chdir: "{{ wordpress_path }}"

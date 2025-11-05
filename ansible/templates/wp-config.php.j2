@@ -1,0 +1,36 @@
+<?php
+define( 'DB_NAME', '{{ db_name }}' );
+define( 'DB_USER', '{{ db_user }}' );
+define( 'DB_PASSWORD', '{{ db_password }}' );
+define( 'DB_HOST', '{{ db_host }}' );
+define( 'DB_CHARSET', 'utf8' );
+define( 'DB_COLLATE', '' );
+
+// Configuração do ElastiCache Memcached
+define('WP_CACHE', true);
+define('WP_CACHE_KEY_SALT', 'desafio-sre.com'); // Mude para algo único
+$memcached_servers = array(
+    'default' => array(
+        '{{ elasticache_host }}'
+    )
+);
+
+// Chaves de segurança - Gere novas em: https://api.wordpress.org/secret-key/1.1/salt/
+define('AUTH_KEY',         'coloque-sua-chave-unica-aqui');
+define('SECURE_AUTH_KEY',  'coloque-sua-chave-unica-aqui');
+define('LOGGED_IN_KEY',    'coloque-sua-chave-unica-aqui');
+define('NONCE_KEY',        'coloque-sua-chave-unica-aqui');
+define('AUTH_SALT',        'coloque-sua-chave-unica-aqui');
+define('SECURE_AUTH_SALT', 'coloque-sua-chave-unica-aqui');
+define('LOGGED_IN_SALT',   'coloque-sua-chave-unica-aqui');
+define('NONCE_SALT',       'coloque-sua-chave-unica-aqui');
+
+$table_prefix = 'wp_';
+
+define( 'WP_DEBUG', false );
+
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', __DIR__ . '/' );
+}
+
+require_once ABSPATH . 'wp-settings.php';

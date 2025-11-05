@@ -1,0 +1,57 @@
+- name: Provisionar Servidor VPN Pritunl com MongoDB (Ubuntu 24.04)
+  hosts: pritunl_servers
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: 1. Instalar pacotes de pré-requisitos
+      ansible.builtin.apt:
+        name:
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: 2. Adicionar a chave GPG do MongoDB
+      ansible.builtin.get_url:
+        url: https://www.mongodb.org/static/pgp/server-8.0.asc
+        dest: /etc/apt/trusted.gpg.d/mongodb-server-8.0.asc
+        mode: '0644'
+        force: yes
+
+    - name: 3. Adicionar o repositório do MongoDB
+      ansible.builtin.apt_repository:
+        repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/8.0 multiverse"
+        state: present
+        filename: mongodb-org-8.0
+
+    - name: 4. Adicionar a chave GPG do Pritunl
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/pritunl/pgp/master/pritunl_repo_pub.asc
+        dest: /etc/apt/trusted.gpg.d/pritunl.asc
+        mode: '0644'
+        force: yes
+
+    - name: 5. Adicionar o repositório do Pritunl
+      ansible.builtin.apt_repository:
+        repo: "deb https://repo.pritunl.com/stable/apt {{ ansible_distribution_release }} main"
+        state: present
+        filename: pritunl
+
+    - name: 6. Instalar Pritunl e dependências
+      ansible.builtin.apt:
+        name:
+          - mongodb-org
+          - pritunl
+          - openvpn
+          - wireguard
+        state: present
+        update_cache: yes
+
+    - name: 7. Habilitar e iniciar os serviços
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - mongod
+        - pritunl

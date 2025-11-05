@@ -1,0 +1,105 @@
+- name: Configurar Servidores WordPress (Ubuntu)
+  hosts: wordpress_servers
+  become: yes
+  tasks:
+    - name: 0. Atualizar o cache de pacotes (apt-get update)
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600 # Atualiza apenas se o cache tiver mais de 1 hora
+
+    - name: 1. Baixar o pacote amazon-efs-utils .deb
+      ansible.builtin.get_url:
+        url: https://packagecloud.io/meter/public/packages/ubuntu/noble/amazon-efs-utils_2.3.0-1_amd64.deb/download
+        dest: /tmp/amazon-efs-utils.deb
+        mode: '0644'
+
+    - name: 2. Instalar o pacote amazon-efs-utils .deb
+      ansible.builtin.apt:
+        deb: /tmp/amazon-efs-utils.deb
+        state: present
+        force: yes
+
+    - name: 2.5. Corrigir dependências quebradas (se houver)
+      ansible.builtin.command: apt --fix-broken install -y
+
+    - name: 3. Instalar pacotes necessários (Apache, PHP, NFS client, Memcached client)
+      ansible.builtin.apt:
+        name:
+          - apache2
+          - php
+          - php-mysql
+          - nfs-common
+          - php-memcached
+        state: present
+        update_cache: yes
+
+    - name: 4. Criar diretório de uploads
+      ansible.builtin.file:
+        path: /var/www/html/wp-content/uploads
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0775'
+        recurse: yes
+
+    - name: 5. Montar o EFS no diretório de uploads
+      ansible.posix.mount:
+        src: "{{ efs_id }}.efs.{{ aws_region }}.amazonaws.com:/" # <-- Esta linha agora vai funcionar
+        path: /var/www/html/wp-content/uploads
+        fstype: efs
+        opts: "_netdev,tls"
+        state: mounted
+
+    - name: 6. Baixar e descompactar o WordPress
+      ansible.builtin.unarchive:
+        src: https://wordpress.org/latest.tar.gz
+        dest: /tmp/
+        remote_src: yes
+
+    - name: 7. Remover o arquivo index.html padrão
+      ansible.builtin.file:
+        path: /var/www/html/index.html
+        state: absent
+
+    - name: 8. Mover arquivos do WordPress para a raiz do Apache
+      ansible.builtin.shell: rsync -av /tmp/wordpress/ /var/www/html/ --exclude=wp-content/uploads
+      args:
+        creates: /var/www/html/index.php
+
+    - name: 9. Copiar object-cache.php para o diretório wp-content
+      ansible.builtin.copy:
+        src: ../files/object-cache.php
+        dest: /var/www/html/wp-content/object-cache.php
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: 10. Criar wp-config.php a partir do template
+      ansible.builtin.template:
+        src: ../templates/wp-config.php.j2
+        dest: /var/www/html/wp-config.php
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: 10. Criar arquivo de Health Check para o ALB
+      ansible.builtin.copy:
+        content: "OK"
+        dest: /var/www/html/health.html
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: 11. Definir permissões corretas para o Apache
+      ansible.builtin.file:
+        path: /var/www/html
+        state: directory
+        owner: www-data
+        group: www-data
+        recurse: yes
+
+    - name: 12. Iniciar e habilitar o serviço Apache (apache2)
+      ansible.builtin.service:
+        name: apache2
+        state: started
+        enabled: yes

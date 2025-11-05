@@ -1,0 +1,9 @@
+- name: Instalar traceroute
+  hosts: pritunl_servers
+  become: yes
+  tasks:
+    - name: Instalar traceroute
+      ansible.builtin.apt:
+        name: traceroute
+        state: present
+        update_cache: yes
