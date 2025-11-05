@@ -16,7 +16,7 @@ provider "aws" {
 # 1. Rede
 module "vpc" {
   source               = "./modules/vpc"
-  desafio_sre          = var.desafio_sre
+  desafio_sre          = var.desafio_sre"
   vpc_cidr             = var.vpc_cidr
   public_subnets_cidr  = var.public_subnets_cidr
   private_subnets_cidr = var.private_subnets_cidr
